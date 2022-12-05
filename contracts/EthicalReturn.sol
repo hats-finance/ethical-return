@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 contract EthicalReturn is ReentrancyGuard {
     error BountyPayoutFailed();
+    error TipPayoutFailed();
     error OnlyBeneficiary();
     error OnlyHacker();
 
@@ -12,12 +13,22 @@ contract EthicalReturn is ReentrancyGuard {
 
     address public immutable hacker;
     address public immutable beneficiary;
+    address public immutable tipAddress;
     uint256 public immutable bountyPercentage;
+    uint256 public immutable tipPercentage;
 
-    constructor(address _hacker, address _beneficiary, uint256 _bountyPercentage) {
+    constructor(
+        address _hacker,
+        address _beneficiary,
+        address _tipAddress,
+        uint256 _bountyPercentage,
+        uint256 _tipPercentage
+    ) {
         hacker = _hacker;
         beneficiary = _beneficiary;
+        tipAddress = _tipAddress;
         bountyPercentage = _bountyPercentage;
+        tipPercentage = _tipPercentage;
     }
 
     receive() external payable {}
@@ -28,10 +39,16 @@ contract EthicalReturn is ReentrancyGuard {
         }
 
         uint256 payout = address(this).balance * bountyPercentage / HUNDRED_PERCENT;
+        uint256 tip = address(this).balance * tipPercentage / HUNDRED_PERCENT;
 
         (bool sent,) = hacker.call{value: payout}("");
         if (!sent) {
             revert BountyPayoutFailed();
+        }
+
+        (sent,) = tipAddress.call{value: tip}("");
+        if (!sent) {
+            revert TipPayoutFailed();
         }
         
         selfdestruct(payable(beneficiary));
