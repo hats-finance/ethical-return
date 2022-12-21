@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 contract EthicalReturn is ReentrancyGuard {
+    error InvalidDistribution();
     error BountyPayoutFailed();
     error TipPayoutFailed();
     error OnlyBeneficiary();
@@ -27,6 +28,10 @@ contract EthicalReturn is ReentrancyGuard {
         uint256 _tipPercentage,
         uint256 _minimumAmount
     ) {
+        if (_bountyPercentage + _tipPercentage > HUNDRED_PERCENT) {
+            revert InvalidDistribution();
+        }
+
         hacker = _hacker;
         beneficiary = _beneficiary;
         tipAddress = _tipAddress;
