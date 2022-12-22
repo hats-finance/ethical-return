@@ -6,27 +6,43 @@
 // global scope, and execute the script.
 const hre = require("hardhat");
 
-async function main() {
-
-  const accounts = await ethers.getSigners();
-
-  const hacker = accounts[1].address;
-  const beneficiary = accounts[2].address;
-  const bountyPercentage = 4000;
-
+async function main(
+  hacker = process.env.HACKER,
+  beneficiary = process.env.BENEFICIARY,
+  tipAddress = process.env.TIP_ADDRESS,
+  bountyPercentage = process.env.BOUNTY_PERCENTAGE,
+  tipPercentage = process.env.TIP_PERCENTAGE,
+  minimumAmount = process.env.MINIMUM_AMOUNT,
+  sielnt = false
+) {
   const EthicalReturn = await hre.ethers.getContractFactory("EthicalReturn");
-  const ethicalReturn = await EthicalReturn.deploy(hacker, beneficiary, bountyPercentage);
+  const ethicalReturn = await EthicalReturn.deploy(
+    hacker,
+    beneficiary,
+    tipAddress,
+    bountyPercentage,
+    tipPercentage,
+    minimumAmount
+  );
 
   await ethicalReturn.deployed();
 
-  console.log(
-    `EthicalReturn deployed at: ${ethicalReturn.address}`
-  );
+  if (!sielnt) {
+    console.log(
+      `EthicalReturn deployed at: ${ethicalReturn.address}`
+    );
+  }
+  
+  return ethicalReturn;
 }
 
-// We recommend this pattern to be able to use async/await everywhere
-// and properly handle errors.
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+        console.error(error);
+        process.exit(1);
+    });
+}
+
+module.exports = { deployEthicalReturn: main };
