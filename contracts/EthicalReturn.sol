@@ -55,6 +55,9 @@ contract EthicalReturn is ReentrancyGuard {
             revert InvalidHacker();
         }
         if (hacker != address(0)) {
+            if (_hacker == hacker) {
+                return;
+            }
             revert AlreadyDeposited();
         }
         if (msg.value < minimumAmount) {
