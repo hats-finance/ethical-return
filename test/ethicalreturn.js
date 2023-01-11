@@ -1,8 +1,9 @@
 const { expect } = require("chai");
 const { deployEthicalReturn } = require("../scripts/deploy.js");
 const HUNDRED_PERCENT = 10000;
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
-describe("Ethical Return", (accounts) => {
+describe("Ethical Return", () => {
     it("Deployment should init correctly", async () => {
         const [hacker, beneficiary, tipAddress] = await ethers.getSigners();
         const bountyPercentage = 4900;
@@ -24,6 +25,156 @@ describe("Ethical Return", (accounts) => {
         expect(await ethicalReturn.bountyPercentage()).to.equal(bountyPercentage);
         expect(await ethicalReturn.tipPercentage()).to.equal(tipPercentage);
         expect(await ethicalReturn.minimumAmount()).to.equal(minimumAmount);
+    });
+
+    it("Deposit should set hacker address", async () => {
+        const EthicalReturn = await ethers.getContractFactory("EthicalReturn");
+        const [hacker, beneficiary, tipAddress] = await ethers.getSigners();
+        const bountyPercentage = 4900;
+        const tipPercentage = 100;
+        const minimumAmount = ethers.utils.parseEther("100");
+        let ethicalReturn = await deployEthicalReturn(
+            ZERO_ADDRESS,
+            beneficiary.address,
+            tipAddress.address,
+            bountyPercentage,
+            tipPercentage,
+            minimumAmount,
+            true
+        );
+
+        expect(await ethicalReturn.hacker()).to.equal(ZERO_ADDRESS);
+
+        await expect(ethicalReturn.connect(hacker).deposit(ZERO_ADDRESS, {
+            value: minimumAmount
+        })).to.be.revertedWithCustomError(EthicalReturn, "InvalidHacker");
+        
+        await ethicalReturn.connect(hacker).deposit(hacker.address, {
+            value: minimumAmount
+        });
+
+        expect(await ethicalReturn.hacker()).to.equal(hacker.address);
+
+        await expect(ethicalReturn.connect(hacker).deposit(beneficiary.address, {
+            value: minimumAmount
+        })).to.be.revertedWithCustomError(EthicalReturn, "AlreadyDeposited");
+
+        ethicalReturn = await deployEthicalReturn(
+            hacker.address,
+            beneficiary.address,
+            tipAddress.address,
+            bountyPercentage,
+            tipPercentage,
+            minimumAmount,
+            true
+        );
+
+        expect(await ethicalReturn.hacker()).to.equal(hacker.address);
+
+        await expect(ethicalReturn.connect(hacker).deposit(beneficiary.address, {
+            value: minimumAmount
+        })).to.be.revertedWithCustomError(EthicalReturn, "AlreadyDeposited");
+    });
+
+    it("Deposit must be at least minimum amount", async () => {
+        const EthicalReturn = await ethers.getContractFactory("EthicalReturn");
+        const [hacker, beneficiary, tipAddress] = await ethers.getSigners();
+        const bountyPercentage = 4900;
+        const tipPercentage = 100;
+        const minimumAmount = ethers.utils.parseEther("100");
+        let ethicalReturn = await deployEthicalReturn(
+            ZERO_ADDRESS,
+            beneficiary.address,
+            tipAddress.address,
+            bountyPercentage,
+            tipPercentage,
+            minimumAmount,
+            true
+        );
+
+        expect(await ethicalReturn.hacker()).to.equal(ZERO_ADDRESS);
+
+        await expect(ethicalReturn.connect(hacker).deposit(hacker.address, {
+            value: ethers.utils.parseEther("99.9")
+        })).to.be.revertedWithCustomError(EthicalReturn, "MustDepositMinimumAmount");
+        
+        await ethicalReturn.connect(hacker).deposit(hacker.address, {
+            value: ethers.utils.parseEther("200")
+        });
+
+        expect(await ethicalReturn.hacker()).to.equal(hacker.address);
+    });
+
+    it("Can depoist only to hacker if set", async () => {
+        const EthicalReturn = await ethers.getContractFactory("EthicalReturn");
+        const [hacker, beneficiary, tipAddress] = await ethers.getSigners();
+        const bountyPercentage = 4900;
+        const tipPercentage = 100;
+        const minimumAmount = ethers.utils.parseEther("100");
+        let ethicalReturn = await deployEthicalReturn(
+            ZERO_ADDRESS,
+            beneficiary.address,
+            tipAddress.address,
+            bountyPercentage,
+            tipPercentage,
+            minimumAmount,
+            true
+        );
+
+        expect(await ethicalReturn.hacker()).to.equal(ZERO_ADDRESS);
+        
+        await ethicalReturn.connect(hacker).deposit(hacker.address, {
+            value: minimumAmount
+        });
+
+        expect(await ethicalReturn.hacker()).to.equal(hacker.address);
+
+        await expect(ethicalReturn.connect(hacker).deposit(beneficiary.address, {
+            value: minimumAmount
+        })).to.be.revertedWithCustomError(EthicalReturn, "AlreadyDeposited");
+
+        await ethicalReturn.connect(hacker).deposit(hacker.address, {
+            value: ethers.utils.parseEther("99")
+        });
+
+        expect(await ethers.provider.getBalance(ethicalReturn.address)).to.equal(ethers.utils.parseEther("199"));
+    });
+
+    it("Can send eth only if hacker is set", async () => {
+        const EthicalReturn = await ethers.getContractFactory("EthicalReturn");
+        const [hacker, beneficiary, tipAddress] = await ethers.getSigners();
+        const bountyPercentage = 4900;
+        const tipPercentage = 100;
+        const minimumAmount = ethers.utils.parseEther("100");
+        let ethicalReturn = await deployEthicalReturn(
+            ZERO_ADDRESS,
+            beneficiary.address,
+            tipAddress.address,
+            bountyPercentage,
+            tipPercentage,
+            minimumAmount,
+            true
+        );
+
+        expect(await ethicalReturn.hacker()).to.equal(ZERO_ADDRESS);
+
+        await expect(hacker.sendTransaction({
+            to: ethicalReturn.address,
+            value: minimumAmount
+        })).to.be.revertedWithCustomError(EthicalReturn, "MustHaveHackerBeforeDeposit");
+        
+        await ethicalReturn.connect(hacker).deposit(hacker.address, {
+            value: minimumAmount
+        });
+
+        expect(await ethicalReturn.hacker()).to.equal(hacker.address);
+
+        await hacker.sendTransaction({
+            to: ethicalReturn.address,
+            value: minimumAmount
+        });
+
+        expect(await ethers.provider.getBalance(ethicalReturn.address)).to.equal(ethers.utils.parseEther("200"));
     });
 
     it("Deployment with more than 100% distribution should fail", async () => {    
@@ -77,7 +228,7 @@ describe("Ethical Return", (accounts) => {
         const tipPercentage = 100;
         const minimumAmount = ethers.utils.parseEther("100");
         let ethicalReturn = await deployEthicalReturn(
-            hacker.address,
+            ZERO_ADDRESS,
             beneficiary.address,
             tipAddress.address,
             bountyPercentage,
@@ -88,8 +239,7 @@ describe("Ethical Return", (accounts) => {
 
         const totalAmount = ethers.utils.parseEther("100");
 
-        await hacker.sendTransaction({
-            to: ethicalReturn.address,
+        await ethicalReturn.connect(hacker).deposit(hacker.address, {
             value: totalAmount
         });
 
@@ -118,7 +268,7 @@ describe("Ethical Return", (accounts) => {
         const beneficiaryPercentage = HUNDRED_PERCENT - bountyPercentage - tipPercentage;
         const minimumAmount = ethers.utils.parseEther("100");
         let ethicalReturn = await deployEthicalReturn(
-            hacker.address,
+            ZERO_ADDRESS,
             beneficiary.address,
             tipAddress.address,
             bountyPercentage,
@@ -133,8 +283,7 @@ describe("Ethical Return", (accounts) => {
 
         const totalAmount = ethers.utils.parseEther("100");
 
-        await hacker.sendTransaction({
-            to: ethicalReturn.address,
+        await ethicalReturn.connect(hacker).deposit(hacker.address, {
             value: totalAmount
         });
 
@@ -175,7 +324,7 @@ describe("Ethical Return", (accounts) => {
         const tipPercentage = 100;
         const minimumAmount = ethers.utils.parseEther("100");
         let ethicalReturn = await deployEthicalReturn(
-            badReceiver.address,
+            ZERO_ADDRESS,
             beneficiary.address,
             tipAddress.address,
             bountyPercentage,
@@ -186,8 +335,7 @@ describe("Ethical Return", (accounts) => {
 
         const totalAmount = ethers.utils.parseEther("100");
 
-        await hacker.sendTransaction({
-            to: ethicalReturn.address,
+        await ethicalReturn.connect(hacker).deposit(badReceiver.address, {
             value: totalAmount
         });
 
@@ -196,7 +344,7 @@ describe("Ethical Return", (accounts) => {
         ).to.be.revertedWithCustomError(EthicalReturn, "BountyPayoutFailed");
 
         ethicalReturn = await deployEthicalReturn(
-            hacker.address,
+            ZERO_ADDRESS,
             beneficiary.address,
             badReceiver.address,
             bountyPercentage,
@@ -205,8 +353,7 @@ describe("Ethical Return", (accounts) => {
             true
         );
 
-        await hacker.sendTransaction({
-            to: ethicalReturn.address,
+        await ethicalReturn.connect(hacker).deposit(hacker.address, {
             value: totalAmount
         });
 
@@ -225,7 +372,7 @@ describe("Ethical Return", (accounts) => {
         const tipPercentage = 100;
         const minimumAmount = ethers.utils.parseEther("100");
         let ethicalReturn = await deployEthicalReturn(
-            badReceiver.address,
+            ZERO_ADDRESS,
             beneficiary.address,
             tipAddress.address,
             bountyPercentage,
@@ -236,8 +383,7 @@ describe("Ethical Return", (accounts) => {
 
         const totalAmount = ethers.utils.parseEther("100");
 
-        await hacker.sendTransaction({
-            to: ethicalReturn.address,
+        await ethicalReturn.connect(hacker).deposit(badReceiver.address, {
             value: totalAmount
         });
 

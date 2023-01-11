@@ -10,10 +10,14 @@ contract EthicalReturn is ReentrancyGuard {
     error OnlyBeneficiary();
     error OnlyHacker();
     error NotMinimumAmount();
+    error InvalidHacker();
+    error AlreadyDeposited();
+    error MustDepositMinimumAmount();
+    error MustHaveHackerBeforeDeposit();
 
     uint256 public constant HUNDRED_PERCENT = 10_000;
 
-    address public immutable hacker;
+    address public hacker;
     address public immutable beneficiary;
     address public immutable tipAddress;
     uint256 public immutable bountyPercentage;
@@ -39,8 +43,28 @@ contract EthicalReturn is ReentrancyGuard {
         tipPercentage = _tipPercentage;
         minimumAmount = _minimumAmount;
     }
+    
+    receive() external payable {
+        if (hacker == address(0)) {
+            revert MustHaveHackerBeforeDeposit();
+        } 
+    }
 
-    receive() external payable {}
+    function deposit(address _hacker) external payable {
+        if (_hacker == address(0)) {
+            revert InvalidHacker();
+        }
+        if (hacker != address(0)) {
+            if (_hacker == hacker) {
+                return;
+            }
+            revert AlreadyDeposited();
+        }
+        if (msg.value < minimumAmount) {
+            revert MustDepositMinimumAmount();
+        }
+        hacker = _hacker;
+    }
 
     function sendPayouts() external nonReentrant {
         if (address(this).balance < minimumAmount) {
