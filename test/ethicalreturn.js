@@ -399,4 +399,38 @@ describe("Ethical Return", () => {
             ethicalReturn.connect(beneficiary).sendPayouts()
         ).to.be.revertedWithCustomError(EthicalReturn, "BountyPayoutFailed");
     });
+    
+    it("Sweep tokens", async () => {
+        const EthicalReturn = await ethers.getContractFactory("EthicalReturn");
+        const ERC20Mock = await ethers.getContractFactory("ERC20Mock");
+        const erc20Mock = await ERC20Mock.deploy();
+        await erc20Mock.deployed();
+        const [hacker, beneficiary, tipAddress] = await ethers.getSigners();
+        const bountyPercentage = 4900;
+        const tipPercentage = 100;
+        const minimumAmount = ethers.utils.parseEther("100");
+        let ethicalReturn = await deployEthicalReturn(
+            hacker.address,
+            beneficiary.address,
+            tipAddress.address,
+            bountyPercentage,
+            tipPercentage,
+            minimumAmount,
+            true
+        );
+
+        await erc20Mock.mint(ethicalReturn.address, 10);
+
+        expect(await erc20Mock.balanceOf(ethicalReturn.address)).to.equal(10);
+        expect(await erc20Mock.balanceOf(beneficiary.address)).to.equal(0);
+
+        await expect(
+            ethicalReturn.connect(hacker).sweepToken(erc20Mock.address, 10)
+        ).to.be.revertedWithCustomError(EthicalReturn, "OnlyBeneficiary");
+
+        await ethicalReturn.connect(beneficiary).sweepToken(erc20Mock.address, 10);
+
+        expect(await erc20Mock.balanceOf(ethicalReturn.address)).to.equal(0);
+        expect(await erc20Mock.balanceOf(beneficiary.address)).to.equal(10);
+    });
 });
