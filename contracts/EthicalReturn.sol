@@ -2,8 +2,12 @@
 pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract EthicalReturn is ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
     error InvalidDistribution();
     error BountyPayoutFailed();
     error TipPayoutFailed();
@@ -96,5 +100,13 @@ contract EthicalReturn is ReentrancyGuard {
             revert OnlyHacker();
         }
         selfdestruct(payable(hacker));
+    }
+
+    /** @notice See {IRewardController-sweepToken}. */
+    function sweepToken(IERC20 _token, uint256 _amount) external {
+        if (msg.sender != beneficiary) {
+            revert OnlyBeneficiary();
+        }
+        _token.safeTransfer(msg.sender, _amount);
     }
 }
