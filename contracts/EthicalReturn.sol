@@ -102,7 +102,6 @@ contract EthicalReturn is ReentrancyGuard {
         selfdestruct(payable(hacker));
     }
 
-    /** @notice See {IRewardController-sweepToken}. */
     function sweepToken(IERC20 _token, uint256 _amount) external {
         if (msg.sender != beneficiary) {
             revert OnlyBeneficiary();
